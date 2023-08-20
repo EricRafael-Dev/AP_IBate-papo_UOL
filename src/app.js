@@ -23,6 +23,7 @@ const db = client.db();
 app.get("/participants", async (req, res) => {
 	try {
 		const participants = await db.collection("participants").find().toArray();
+
 		res.send(participants);
 	} catch (err) {
 		res.status(500).send(err.message)
@@ -31,15 +32,16 @@ app.get("/participants", async (req, res) => {
 
 app.post("/participants", async(req,res) => {
     const { name } = req.body;
-
     const schemaUser = Joi.object({
+
         name: Joi.string().required()
+
 	})
 
-    const validation = schemaUser.validate(req.body, { abortEarly: false });
+    const val = schemaUser.validate(req.body, { abortEarly: false });
 
-	if (validation.error) {
-		const errors = validation.error.details.map(detail => detail.message);
+	if (val.error) {
+		const errors = val.error.details.map(detail => detail.message);
 		return res.status(422).send(errors);
 	}
 
@@ -50,7 +52,6 @@ app.post("/participants", async(req,res) => {
         await db.collection("participants").insertOne({name: req.body.name, lastStatus: Date.now()});
 
         const date = dayjs();
-
         const hour = date.format('HH:mm:ss');
 
         await db.collection("messages").insertOne({from: req.body.name, to: 'Todos', text: 'entra na sala...', type: 'status', time: hour});
@@ -62,6 +63,69 @@ app.post("/participants", async(req,res) => {
 
 })
 
+app.post("/messages", async (req, res) => {
+    const { to, text, type } = req.body;
+    const user = req.headers.user;
+
+    const schemaMessage = Joi.object({
+        to: Joi.string().required(),
+        text: Joi.string().required(),
+        type: Joi.string().valid('message', 'private_message').required()
+    })
+
+    const val = schemaMessage.validate(req.body, { abortEarly: false });
+
+    if (val.error) {
+        const errors = val.error.details.map(detail => detail.message);
+        return res.status(422).send(errors);
+    }
+
+    try {
+        const participant = await db.collection("participants").findOne({ name: user });
+        if (!participant) return res.status(401).send("Esse usuário não está na lista de participantes! Faça o Login novamente.");
+
+        const date = dayjs();
+
+        const hour = date.format('HH:mm:ss');
+
+        await db.collection("messages").insertOne({ from: user, to: to, text: text, type: type, time: hour });
+
+        res.sendStatus(201);
+    } catch (err) {
+        res.status(500).send(err.message);
+    }
+
+})
+
+app.get("/messages", async (req, res) => {
+
+    const limit = parseInt(req.query.limit);
+
+    const user = req.headers.user;
+
+    try {
+        const messages = await db.collection("messages").find({
+            $or: [
+                { to: "Todos" },
+                { to: user },
+                { from: user }
+            ]
+        }).toArray();
+
+        if (limit) {
+            if (typeof limit === 'number' && limit > 0 && Number.isInteger(limit)) {
+              return res.send(messages.slice(-limit));
+            } else {
+              return res.status(422).send("Limite inválido. Certifique-se de que é um número inteiro positivo.");
+            }
+          }
+
+        res.send(messages);
+
+    } catch (err) {
+        res.status(500).send(err.message);
+    }
+})
 
 
 const PORT = 5000;
