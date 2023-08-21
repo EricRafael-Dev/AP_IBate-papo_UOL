@@ -136,6 +136,30 @@ app.get("/messages", async (req, res) => {
 })
 
 
+app.post("/status", async (req, res) => {
+
+    const user = req.headers.user;
+
+    if (!user) {
+        return res.status(422).send("Não recebemos o user");
+    }
+
+    try {
+        const usuario = await db.collection("participants").findOne({ name: user });
+        
+
+        if (!usuario) {
+            return res.sendStatus(404);
+          }
+
+
+        res.sendStatus(200);
+    } catch (err) {
+        res.status(500).send(err.message);
+    }
+
+})
+
 const PORT = 5000;
 
 app.listen(PORT, () => console.log(`O servidor está rodando na porta ${PORT}!`));
