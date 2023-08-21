@@ -75,6 +75,10 @@ app.post("/messages", async (req, res) => {
 
     const val = schemaMessage.validate(req.body, { abortEarly: false });
 
+    if(!user){
+        return res.status(422).send("Não recebemos o user");
+    }
+
     if (val.error) {
         const errors = val.error.details.map(detail => detail.message);
         return res.status(422).send(errors);
@@ -82,7 +86,7 @@ app.post("/messages", async (req, res) => {
 
     try {
         const participant = await db.collection("participants").findOne({ name: user });
-        if (!participant) return res.status(401).send("Esse usuário não está na lista de participantes! Faça o Login novamente.");
+        if (!participant) return res.status(422).send("Esse usuário não está na lista de participantes! Faça o Login novamente.");
 
         const date = dayjs();
 
@@ -113,9 +117,13 @@ app.get("/messages", async (req, res) => {
         }).toArray();
 
         if (limit) {
-            if (typeof limit === 'number' && limit > 0 && Number.isInteger(limit)) {
-              return res.send(messages.slice(-limit));
+            if (typeof limit === 'number' && limit !== null && limit > 0 && Number.isInteger(limit)) {
+
+              if (messages.length > limit) {
+                messages = messages.slice(-limit);}
+
             } else {
+
               return res.status(422).send("Limite inválido. Certifique-se de que é um número inteiro positivo.");
             }
           }
